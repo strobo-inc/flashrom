@@ -83,7 +83,7 @@
 
 #if defined(__MACH__) && defined(__APPLE__)
     /* Header is part of the DirectHW library. */
-    #include <DirectHW/DirectHW.h>
+    #include "DirectHW.h"
 #endif
 
   /* This is the usual glibc interface. */

@@ -797,7 +797,7 @@ endif
 else
 ifeq ($(TARGET_OS), Darwin)
 # DirectHW framework can be found in the DirectHW library.
-PCILIBS += -framework IOKit -framework DirectHW
+PCILIBS += -framework IOKit -l DirectHW
 endif
 endif
 endif
@@ -854,7 +854,7 @@ endif
 
 ifeq ($(HAS_CLOCK_GETTIME), yes)
 FEATURE_CFLAGS += -D'HAVE_CLOCK_GETTIME=1'
-FEATURE_LIBS += -lrt
+#FEATURE_LIBS += -lrt
 endif
 
 LIBFLASHROM_OBJS = $(CHIP_OBJS) $(PROGRAMMER_OBJS) $(LIB_OBJS)
