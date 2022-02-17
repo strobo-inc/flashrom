@@ -76,6 +76,7 @@ extern const struct programmer_entry programmer_jlink_spi;
 extern const struct programmer_entry programmer_linux_mtd;
 extern const struct programmer_entry programmer_linux_spi;
 extern const struct programmer_entry programmer_lspcon_i2c_spi;
+extern const struct programmer_entry programmer_mediatek_i2c_spi;
 extern const struct programmer_entry programmer_mstarddc_spi;
 extern const struct programmer_entry programmer_ni845x_spi;
 extern const struct programmer_entry programmer_nic3com;
@@ -231,17 +232,7 @@ int chipset_flash_enable(void);
 int processor_flash_enable(void);
 #endif
 
-/* physmap.c */
-void *physmap(const char *descr, uintptr_t phys_addr, size_t len);
-void *rphysmap(const char *descr, uintptr_t phys_addr, size_t len);
-void *physmap_ro(const char *descr, uintptr_t phys_addr, size_t len);
-void *physmap_ro_unaligned(const char *descr, uintptr_t phys_addr, size_t len);
-void physunmap(void *virt_addr, size_t len);
-void physunmap_unaligned(void *virt_addr, size_t len);
 #if CONFIG_INTERNAL == 1
-int setup_cpu_msr(int cpu);
-void cleanup_cpu_msr(void);
-
 /* cbtable.c */
 int cb_parse_table(const char **vendor, const char **model);
 int cb_check_image(const uint8_t *bios, unsigned int size);
@@ -271,7 +262,6 @@ struct pci_dev *pci_dev_find(uint16_t vendor, uint16_t device);
 struct pci_dev *pci_card_find(uint16_t vendor, uint16_t device,
 			      uint16_t card_vendor, uint16_t card_device);
 #endif
-int rget_io_perms(void);
 #if CONFIG_INTERNAL == 1
 extern int is_laptop;
 extern int laptop_ok;
@@ -359,8 +349,10 @@ enum ich_chipset {
 	CHIPSET_C620_SERIES_LEWISBURG,
 	CHIPSET_300_SERIES_CANNON_POINT,
 	CHIPSET_400_SERIES_COMET_POINT,
+	CHIPSET_500_SERIES_TIGER_POINT,
 	CHIPSET_APOLLO_LAKE,
 	CHIPSET_GEMINI_LAKE,
+	CHIPSET_ELKHART_LAKE,
 };
 
 /* ichspi.c */

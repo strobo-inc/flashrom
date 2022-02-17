@@ -11,6 +11,18 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
+ * This file contains tests for operations on flash chip.
+ *
+ * Two flash chip test variants are used:
+ *
+ * 1) Mock chip state backed by `g_chip_state`.
+ * Example of test: erase_chip_test_success.
+ *
+ * 2) Mock chip operations backed by `dummyflasher` emulation.
+ * Dummyflasher controls chip state and emulates read/write/unlock/erase.
+ * `g_chip_state` is NOT used for this type of tests.
+ * Example of test: erase_chip_with_dummyflasher_test_success.
  */
 
 #include <include/test.h>
@@ -19,9 +31,11 @@
 
 #include "chipdrivers.h"
 #include "flash.h"
+#include "libflashrom.h"
 #include "programmer.h"
 
 #define MOCK_CHIP_SIZE (8*MiB)
+#define MOCK_CHIP_CONTENT 0xff
 
 static struct {
 	unsigned int unlock_calls; /* how many times unlock function was called */
@@ -92,6 +106,7 @@ static void setup_chip(struct flashrom_flashctx *flashctx, struct flashrom_layou
 	flashctx->chip = chip;
 
 	g_chip_state.unlock_calls = 0;
+	memset(g_chip_state.buf, MOCK_CHIP_CONTENT, sizeof(g_chip_state.buf));
 
 	printf("Creating layout with one included region... ");
 	assert_int_equal(0, flashrom_layout_new(layout));
@@ -182,7 +197,7 @@ void erase_chip_test_success(void **state)
 	setup_chip(&flashctx, &layout, &mock_chip, param);
 
 	printf("Erase chip operation started.\n");
-	assert_int_equal(0, do_erase(&flashctx));
+	assert_int_equal(0, flashrom_flash_erase(&flashctx));
 	printf("Erase chip operation done.\n");
 
 	teardown(&layout);
@@ -204,7 +219,7 @@ void erase_chip_with_dummyflasher_test_success(void **state)
 	setup_chip(&flashctx, &layout, &mock_chip, param_dup);
 
 	printf("Erase chip operation started.\n");
-	assert_int_equal(0, do_erase(&flashctx));
+	assert_int_equal(0, flashrom_flash_erase(&flashctx));
 	printf("Erase chip operation done.\n");
 
 	teardown(&layout);
@@ -224,12 +239,17 @@ void read_chip_test_success(void **state)
 	setup_chip(&flashctx, &layout, &mock_chip, param);
 
 	const char *const filename = "read_chip.test";
+	unsigned long size = mock_chip.total_size * 1024;
+	unsigned char *buf = calloc(size, sizeof(unsigned char));
 
 	printf("Read chip operation started.\n");
-	assert_int_equal(0, do_read(&flashctx, filename));
+	assert_int_equal(0, flashrom_image_read(&flashctx, buf, size));
+	assert_int_equal(0, write_buf_to_file(buf, size, filename));
 	printf("Read chip operation done.\n");
 
 	teardown(&layout);
+
+	free(buf);
 }
 
 void read_chip_with_dummyflasher_test_success(void **state)
@@ -248,14 +268,18 @@ void read_chip_with_dummyflasher_test_success(void **state)
 	setup_chip(&flashctx, &layout, &mock_chip, param_dup);
 
 	const char *const filename = "read_chip.test";
+	unsigned long size = mock_chip.total_size * 1024;
+	unsigned char *buf = calloc(size, sizeof(unsigned char));
 
 	printf("Read chip operation started.\n");
-	assert_int_equal(0, do_read(&flashctx, filename));
+	assert_int_equal(0, flashrom_image_read(&flashctx, buf, size));
+	assert_int_equal(0, write_buf_to_file(buf, size, filename));
 	printf("Read chip operation done.\n");
 
 	teardown(&layout);
 
 	free(param_dup);
+	free(buf);
 }
 
 void write_chip_test_success(void **state)
@@ -283,12 +307,17 @@ void write_chip_test_success(void **state)
 	 * needs to be provided and image_stat.st_size needs to be mocked.
 	 */
 	const char *const filename = "-";
+	unsigned long size = mock_chip.total_size * 1024;
+	uint8_t *const newcontents = malloc(size);
 
 	printf("Write chip operation started.\n");
-	assert_int_equal(0, do_write(&flashctx, filename, NULL));
+	assert_int_equal(0, read_buf_from_file(newcontents, size, filename));
+	assert_int_equal(0, flashrom_image_write(&flashctx, newcontents, size, NULL));
 	printf("Write chip operation done.\n");
 
 	teardown(&layout);
+
+	free(newcontents);
 }
 
 void write_chip_with_dummyflasher_test_success(void **state)
@@ -308,12 +337,16 @@ void write_chip_with_dummyflasher_test_success(void **state)
 
 	/* See comment in write_chip_test_success */
 	const char *const filename = "-";
+	unsigned long size = mock_chip.total_size * 1024;
+	uint8_t *const newcontents = malloc(size);
 
 	printf("Write chip operation started.\n");
-	assert_int_equal(0, do_write(&flashctx, filename, NULL));
+	assert_int_equal(0, read_buf_from_file(newcontents, size, filename));
+	assert_int_equal(0, flashrom_image_write(&flashctx, newcontents, size, NULL));
 	printf("Write chip operation done.\n");
 
 	teardown(&layout);
 
 	free(param_dup);
+	free(newcontents);
 }
