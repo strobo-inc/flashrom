@@ -116,6 +116,7 @@ struct ft2232_data {
 	uint8_t aux_bits;
 	uint8_t pindir;
 	struct ftdi_context ftdic_context;
+	struct ftdi_context* aux_ftdic_context;// secondary channel context
 };
 
 static const char *get_ft2232_devicename(int ft2232_vid, int ft2232_type)
@@ -192,6 +193,12 @@ static int ft2232_shutdown(void *data)
 		msg_perr("Unable to close FTDI device: %d (%s)\n", close_ret,
 		         ftdi_get_error_string(ftdic));
 		ret = 1;
+	}
+
+	if(spi_data->aux_ftdic_context){
+		struct ftdi_context *aux_ctx = spi_data->aux_ftdic_context;
+		ftdi_usb_close(aux_ctx);
+		ftdi_free(aux_ctx);
 	}
 
 	free(spi_data);
@@ -298,6 +305,25 @@ static const struct spi_master spi_master_ft2232 = {
 	.shutdown	= ft2232_shutdown,
 };
 
+static int ft2232_aux_port_init(struct ftdi_context**ctx,int vid,int pid){
+	if(ctx==NULL){
+		msg_perr("ft2232_aux_port_init: passed null pointer\n");
+		return -1;
+	}
+	if((*ctx=ftdi_new())==NULL){
+		msg_perr("ft2232 aux port new faied\n");
+		return -1;
+	}
+	ftdi_set_interface(*ctx,INTERFACE_B);
+	int f = ftdi_usb_open(*ctx,vid,pid);
+	if(f<0&&f!=-5){
+		msg_perr("unable to open ftdi device: %d (%s) \n",f,ftdi_get_error_string(*ctx));
+		ftdi_deinit(*ctx);
+		return -1;
+	}
+	return 0;
+}
+
 /* Returns 0 upon success, a negative number upon errors. */
 static int ft2232_spi_init(void)
 {
@@ -332,10 +358,16 @@ static int ft2232_spi_init(void)
 	uint8_t pindir = 0x0b;
 	struct ftdi_context ftdic;
 	struct ft2232_data *spi_data;
+	bool use_aux_ftdi_port=false;
 
 	arg = extract_programmer_param("type");
 	if (arg) {
-		if (!strcasecmp(arg, "2232H")) {
+		if(!strcasecmp(arg, "hub3writer")){
+			ft2232_type = FTDI_FT2232H_PID;
+			ft2232_interface = INTERFACE_A;// hub3 writerジグは，portAにSPIバスを接続．
+			channel_count = 2;
+			use_aux_ftdi_port=true;
+		}else if (!strcasecmp(arg, "2232H")) {
 			ft2232_type = FTDI_FT2232H_PID;
 			channel_count = 2;
 		} else if (!strcasecmp(arg, "4232H")) {
@@ -572,6 +604,28 @@ format_error:
 		 (ft2232_interface == INTERFACE_B) ? "B" :
 		 (ft2232_interface == INTERFACE_C) ? "C" : "D");
 
+
+	struct ftdi_context*aux_ftdi_ctx=NULL;
+	if(use_aux_ftdi_port){
+		msg_pdbg("use ftdi aux port\n");
+		if(ft2232_aux_port_init(&aux_ftdi_ctx,ft2232_vid,ft2232_type)!=0){
+			msg_perr("ftdi aux port init failed\n");
+			ftdi_deinit(aux_ftdi_ctx);
+			ftdi_free(aux_ftdi_ctx);
+			return -3;
+		}
+		msg_pdbg("ftdi aux port initialized\n");
+		int retcode;
+		if((retcode=ftdi_setdtr_rts(aux_ftdi_ctx,0,1))!=0){
+			msg_perr("ftdi port set dtr/rts failed:%d\n",retcode);
+			ftdi_deinit(aux_ftdi_ctx);
+			ftdi_free(aux_ftdi_ctx);
+			return -3;
+		}
+		msg_pdbg("ftdi aux port set dtr/rts ok\n");
+	}
+	//initialize main port
+
 	if (ftdi_init(&ftdic) < 0) {
 		msg_perr("ftdi_init failed.\n");
 		return -3;
@@ -662,6 +716,7 @@ format_error:
 	spi_data->aux_bits = aux_bits;
 	spi_data->pindir = pindir;
 	spi_data->ftdic_context = ftdic;
+	spi_data->aux_ftdic_context = aux_ftdi_ctx;
 
 	return register_spi_master(&spi_master_ft2232, spi_data);
 
