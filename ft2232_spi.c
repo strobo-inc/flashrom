@@ -197,6 +197,7 @@ static int ft2232_shutdown(void *data)
 
 	if(spi_data->aux_ftdic_context){
 		struct ftdi_context *aux_ctx = spi_data->aux_ftdic_context;
+		ftdi_setdtr_rts(aux_ctx,0,0);
 		ftdi_usb_close(aux_ctx);
 		ftdi_free(aux_ctx);
 	}
