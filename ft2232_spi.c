@@ -193,6 +193,11 @@ static int ft2232_shutdown(void *data)
 		msg_perr("Unable to set pins back to inputs.\n");
 		ret = 1;
 	}
+	//disable bitbang mode
+	int ftdi_ret= ftdi_disable_bitbang(ftdic);
+	if(ftdi_ret!=0){
+		msg_perr("disabling bitbang mode fail%d\n",ftdi_ret);
+	}
 	// restore ttyUSB
 	struct libusb_device_handle *usb_dev = ftdic->usb_dev;
 	int interface = ftdic->interface;
