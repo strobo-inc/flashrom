@@ -193,10 +193,11 @@ static int ft2232_shutdown(void *data)
 		msg_perr("Unable to set pins back to inputs.\n");
 		ret = 1;
 	}
-	//disable bitbang mode
-	int ftdi_ret= ftdi_disable_bitbang(ftdic);
-	if(ftdi_ret!=0){
-		msg_perr("disabling bitbang mode fail%d\n",ftdi_ret);
+	// disable bitbang mode
+	int ftdi_ret = ftdi_disable_bitbang(ftdic);
+	if (ftdi_ret != 0)
+	{
+		msg_perr("disabling bitbang mode fail%d\n", ftdi_ret);
 	}
 	// restore ttyUSB
 	struct libusb_device_handle *usb_dev = ftdic->usb_dev;
@@ -354,7 +355,7 @@ static const struct spi_master spi_master_ft2232 = {
 	.shutdown = ft2232_shutdown,
 };
 
-static int ft2232_aux_port_init(struct ftdi_context **ctx, int vid, int pid)
+static int ft2232_aux_port_init(struct ftdi_context **ctx, int vid, int pid, const char *description, const char *serial)
 {
 	if (ctx == NULL)
 	{
@@ -367,7 +368,7 @@ static int ft2232_aux_port_init(struct ftdi_context **ctx, int vid, int pid)
 		return -1;
 	}
 	ftdi_set_interface(*ctx, INTERFACE_B);
-	int f = ftdi_usb_open(*ctx, vid, pid);
+	int f = ftdi_usb_open_desc(*ctx, vid, pid, description, serial);
 	if (f < 0 && f != -5)
 	{
 		msg_perr("unable to open ftdi device: %d (%s) \n", f, ftdi_get_error_string(*ctx));
@@ -709,11 +710,14 @@ static int ft2232_spi_init(void)
 												   : (ft2232_interface == INTERFACE_C)	 ? "C"
 																						 : "D");
 
+	arg = extract_programmer_param("serial");
+	arg2 = extract_programmer_param("description");
+
 	struct ftdi_context *aux_ftdi_ctx = NULL;
 	if (use_aux_ftdi_port)
 	{
 		msg_pdbg("use ftdi aux port\n");
-		if (ft2232_aux_port_init(&aux_ftdi_ctx, ft2232_vid, ft2232_type) != 0)
+		if (ft2232_aux_port_init(&aux_ftdi_ctx, ft2232_vid, ft2232_type, arg2, arg) != 0)
 		{
 			msg_perr("ftdi aux port init failed\n");
 			ftdi_deinit(aux_ftdi_ctx);
@@ -743,9 +747,6 @@ static int ft2232_spi_init(void)
 	{
 		msg_perr("Unable to select channel (%s).\n", ftdi_get_error_string(&ftdic));
 	}
-
-	arg = extract_programmer_param("serial");
-	arg2 = extract_programmer_param("description");
 
 	f = ftdi_usb_open_desc(&ftdic, ft2232_vid, ft2232_type, arg2, arg);
 
